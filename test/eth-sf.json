@@ -1,0 +1,24 @@
+{
+    "description": "This soulbound token proves that you attended ETHSF on November 4-6, 2022",
+    "external_url": "https://sf.ethglobal.com/",
+    "image": "https://sf.ethglobal.com/img/bridge.png",
+    "name": "ETHSanFrancisco 2022",
+    "attributes": [
+        {
+            "trait_type": "Start Date",
+            "value": "04-Nov-2022"
+        },
+        {
+            "trait_type": "End Date",
+            "value": "06-Nov-2022"
+        },
+        {
+            "trait_type": "Event URL",
+            "value": "https://sf.ethglobal.com/"
+        },
+        {
+            "trait_type": "IRL",
+            "value": "true"
+        }
+    ]
+}
