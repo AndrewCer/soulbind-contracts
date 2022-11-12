@@ -4,10 +4,11 @@
 
 pragma solidity ^0.8.17;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Enums.sol";
 
 import "hardhat/console.sol";
@@ -22,6 +23,8 @@ import "hardhat/console.sol";
  */
 //  TODO(nocs): validate if we need ERC721URIStorage aka tokenURI as we are already storing it manually.
 contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
+    using ECDSA for bytes32;
+
     event EventToken(bytes32 eventId, uint256 tokenId);
 
     struct Token {
@@ -50,16 +53,36 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
 
     constructor() ERC721("Soulbound", "Bound") {}
 
+    modifier eventExists(bytes32 eventId) {
+        require(createdTokens[eventId].owner == address(0x0), "EventId taken");
+        _;
+    }
+
+    // Used while claiming. Allows a person to claim for themselves and not others
+    modifier isValidSignature(bytes memory signature, address addr) {
+        bytes32 msgHash = keccak256(abi.encodePacked(addr));
+        bytes32 signedHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash)
+        );
+
+        require(signedHash.recover(signature) == addr, "Invalid signature");
+        _;
+    }
+
     modifier onlyBurnAuth(uint256 tokenId, bytes32 eventId) {
         if (createdTokens[eventId].burnAuth == BurnAuth.OwnerOnly) {
             require(msg.sender == ownerOf(tokenId), "Only owner may burn");
         }
         if (createdTokens[eventId].burnAuth == BurnAuth.IssuerOnly) {
-            require(msg.sender == createdTokens[eventId].owner, "Only issuer may burn");
+            require(
+                msg.sender == createdTokens[eventId].owner,
+                "Only issuer may burn"
+            );
         }
         if (createdTokens[eventId].burnAuth == BurnAuth.Both) {
             require(
-                msg.sender == createdTokens[eventId].owner || msg.sender == ownerOf(tokenId),
+                msg.sender == createdTokens[eventId].owner ||
+                    msg.sender == ownerOf(tokenId),
                 "Only issuer or owner may burn"
             );
         }
@@ -69,46 +92,79 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         _;
     }
 
-    modifier eventExists(bytes32 eventId) {
-        require(createdTokens[eventId].owner == address(0x0), 'EventId taken');
-        _;
-    }
-
     // Non pre-issued tokens with limit
-    function createToken(bytes32 eventId, string calldata _tokenURI, uint256 limit, BurnAuth _burnAuth) public eventExists(eventId) {
+    function createToken(
+        bytes32 eventId,
+        string calldata _tokenURI,
+        uint256 limit,
+        BurnAuth _burnAuth,
+        address from,
+        bytes memory signature
+    ) public eventExists(eventId) isValidSignature(signature, from) {
         require(limit > 0, "Increase limit");
         require(limit <= _limitMax, "Reduce limit");
 
-        _createToken(eventId, _tokenURI, _burnAuth);
+        _createToken(eventId, _tokenURI, _burnAuth, from);
         createdTokens[eventId].limit = limit;
         createdTokens[eventId].restricted = false;
     }
 
     // Pre-issued tokens from addresses
-    function createTokenFromAddresses(bytes32 eventId, string calldata _tokenURI, address[] calldata to, BurnAuth _burnAuth) public eventExists(eventId) {
+    function createTokenFromAddresses(
+        bytes32 eventId,
+        string calldata _tokenURI,
+        address[] calldata to,
+        BurnAuth _burnAuth,
+        address from,
+        bytes memory signature
+    ) public eventExists(eventId) isValidSignature(signature, from) {
         require(to.length > 0, "Requires receiver array");
 
-        _createToken(eventId, _tokenURI, _burnAuth);
+        _createToken(eventId, _tokenURI, _burnAuth, from);
         createdTokens[eventId].restricted = true;
 
         _issueTokens(to, eventId);
     }
 
     // Pre-issued tokens from codes
-    function createTokenFromCode(bytes32 eventId, string calldata _tokenURI, bytes32[] calldata to, BurnAuth _burnAuth) public eventExists(eventId)  {
+    function createTokenFromCode(
+        bytes32 eventId,
+        string calldata _tokenURI,
+        bytes32[] calldata to,
+        BurnAuth _burnAuth,
+        address from,
+        bytes memory signature
+    ) public eventExists(eventId) isValidSignature(signature, from) {
         require(to.length > 0, "Requires receiver array");
 
-        _createToken(eventId, _tokenURI, _burnAuth);
+        _createToken(eventId, _tokenURI, _burnAuth, from);
         createdTokens[eventId].restricted = true;
 
         _issueCodeTokens(to, eventId);
     }
 
     // Pre-issued tokens from codes and addresses
-    function createTokenFromBoth(bytes32 eventId, string calldata _tokenURI, address[] calldata toAddr, bytes32[] calldata toCode, BurnAuth _burnAuth) public {
-        require(toAddr.length > 0 && toCode.length > 0, "Requires receiver array");
+    function createTokenFromBoth(
+        bytes32 eventId,
+        string calldata _tokenURI,
+        address[] calldata toAddr,
+        bytes32[] calldata toCode,
+        BurnAuth _burnAuth,
+        address from,
+        bytes memory signature
+    ) public {
+        bytes32 msgHash = keccak256(abi.encodePacked(from));
+        bytes32 signedHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash)
+        );
+        require(signedHash.recover(signature) == from, "Invalid signature");
+        require(
+            toAddr.length > 0 && toCode.length > 0,
+            "Requires receiver array"
+        );
 
-        _createToken(eventId, _tokenURI, _burnAuth);
+        // TODO(nocs): solidity really doesnt like me adding 'from' to that function below...
+        // _createToken(eventId, _tokenURI, _burnAuth);
         createdTokens[eventId].restricted = true;
 
         _issueTokens(toAddr, eventId);
@@ -116,15 +172,22 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
     }
 
     // Mint tokens
-    function claimToken(bytes32 eventId) public returns (uint256) {
+    function claimToken(
+        bytes32 eventId,
+        address to,
+        bytes memory signature
+    ) public isValidSignature(signature, to) returns (uint256) {
         require(createdTokens[eventId].restricted == false, "Restricted token");
-        require(createdTokens[eventId].limit > createdTokens[eventId].count, "Token claim limit reached");
+        require(
+            createdTokens[eventId].limit > createdTokens[eventId].count,
+            "Token claim limit reached"
+        );
 
         createdTokens[eventId].count += 1;
 
         _tokenIds.increment();
         uint256 tokenId = _tokenIds.current();
-        _mint(msg.sender, tokenId);
+        _mint(to, tokenId);
         _setTokenURI(tokenId, createdTokens[eventId].uri);
 
         emit EventToken(eventId, tokenId);
@@ -133,16 +196,20 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
     }
 
     // Mint issued token
-    function claimIssuedToken(bytes32 eventId) public returns (uint256) {
+    function claimIssuedToken(
+        bytes32 eventId,
+        address to,
+        bytes memory signature
+    ) public isValidSignature(signature, to) returns (uint256) {
         require(createdTokens[eventId].restricted, "Not a restricted token");
-        require(issuedTokens[eventId][msg.sender], "Token must be issued to you");
+        require(issuedTokens[eventId][to], "Token must be issued to you");
 
-        issuedTokens[eventId][msg.sender] = false;
+        issuedTokens[eventId][to] = false;
         createdTokens[eventId].count += 1;
 
         _tokenIds.increment();
         uint256 tokenId = _tokenIds.current();
-        _mint(msg.sender, tokenId);
+        _mint(to, tokenId);
         _setTokenURI(tokenId, createdTokens[eventId].uri);
 
         emit EventToken(eventId, tokenId);
@@ -151,9 +218,17 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
     }
 
     // Mint issued token by code
-    function claimIssuedTokenFromCode(bytes32 eventId, bytes32 code) public returns (uint256) {
+    function claimIssuedTokenFromCode(
+        bytes32 eventId,
+        bytes32 code,
+        address to,
+        bytes memory signature
+    ) public isValidSignature(signature, to) returns (uint256) {
         require(createdTokens[eventId].restricted, "Not a restricted token");
-        require(issuedCodeTokens[code] == eventId, "Token must be issued to you");
+        require(
+            issuedCodeTokens[code] == eventId,
+            "Token must be issued to you"
+        );
 
         delete issuedCodeTokens[code];
 
@@ -161,7 +236,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
 
         _tokenIds.increment();
         uint256 tokenId = _tokenIds.current();
-        _mint(msg.sender, tokenId);
+        _mint(to, tokenId);
         _setTokenURI(tokenId, createdTokens[eventId].uri);
 
         emit EventToken(eventId, tokenId);
@@ -170,18 +245,30 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
     }
 
     function incraseLimit(bytes32 eventId, uint256 limit) public {
-        require(createdTokens[eventId].owner == msg.sender, "Must be event owner");
-        require(createdTokens[eventId].limit < limit, "Limit must be higher");
+        require(
+            createdTokens[eventId].owner == msg.sender,
+            "Must be event owner"
+        );
+        require(createdTokens[eventId].limit < limit, "Increase limit");
+        require(limit <= _limitMax, "Reduce limit");
 
         createdTokens[eventId].limit = limit;
     }
 
-    function burnToken(uint256 tokenId, bytes32 eventId) public onlyBurnAuth(tokenId, eventId) {
+    function burnToken(uint256 tokenId, bytes32 eventId)
+        public
+        onlyBurnAuth(tokenId, eventId)
+    {
         _burn(tokenId);
     }
 
-    function _createToken(bytes32 eventId, string calldata _tokenURI, BurnAuth _burnAuth) private {
-        createdTokens[eventId].owner = msg.sender;
+    function _createToken(
+        bytes32 eventId,
+        string calldata _tokenURI,
+        BurnAuth _burnAuth,
+        address from
+    ) private {
+        createdTokens[eventId].owner = from;
         createdTokens[eventId].uri = _tokenURI;
         createdTokens[eventId].burnAuth = _burnAuth;
     }
@@ -200,39 +287,43 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
 
     // Soulbound functionality
     function transferFrom(
-        address ,//from,
-        address ,//to,
+        address, //from,
+        address, //to,
         uint256 //tokenId
-    ) public pure override(ERC721,IERC721) {
+    ) public pure override(ERC721, IERC721) {
         revert("This token is soulbound and cannot be transfered");
     }
 
     function safeTransferFrom(
-        address ,//from,
-        address ,//to,
+        address, //from,
+        address, //to,
         uint256 //tokenId
-    ) public pure override(ERC721,IERC721) {
+    ) public pure override(ERC721, IERC721) {
         revert("This token is soulbound and cannot be transfered");
     }
 
     function safeTransferFrom(
-        address ,//from,
-        address ,//to,
-        uint256 ,//tokenId,
+        address, //from,
+        address, //to,
+        uint256, //tokenId,
         bytes memory //_data
-    ) public pure override(ERC721,IERC721) {
+    ) public pure override(ERC721, IERC721) {
         revert("This token is soulbound and cannot be transfered");
     }
 
     // Required overrides from parent contracts
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
+    function _beforeTokenTransfer(
+        address from,
+        address to,
+        uint256 tokenId
+    ) internal override(ERC721, ERC721Enumerable) {
         super._beforeTokenTransfer(from, to, tokenId);
     }
 
-    function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
+    function _burn(uint256 tokenId)
+        internal
+        override(ERC721, ERC721URIStorage)
+    {
         super._burn(tokenId);
     }
 

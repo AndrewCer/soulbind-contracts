@@ -80,20 +80,77 @@ describe("Soulbound", function () {
   });
 
   describe("Claiming", function () {
-    // https://storage.googleapis.com/external-testing/eth-sf.json
-    it("Should only allow issued tokens to be claimed by accounts that were issued to", async function () {
+    it("Should only allow the signer to claim a token", async function () {
       const { soulbound, addr1, addr2 } = await loadFixture(deploySoulboundFixture);
 
-      // Issuer sets recievers address
-      const ipfsUri = 'bafyreiakiduy5t3jtjvkz2zg2eu4uyirqfavosquhc2l57dpkhbk2bcvhm'
-      await soulbound["createToken(string,uint256,uint8)"](ipfsUri, 10, 2);
+      let messageHash = ethers.utils.solidityKeccak256(
+        ["address"],
+        [addr1.address]
+      );
 
-      await expect(soulbound.connect(addr1).claimToken(1)).to.emit(soulbound, 'EventToken').withArgs(1, 1);
-      await expect(soulbound.connect(addr2).claimToken(1)).to.emit(soulbound, 'EventToken').withArgs(1, 2);
+      let messageHashBinary = ethers.utils.arrayify(messageHash);
+
+      let signature = await addr1.signMessage(messageHashBinary);
+
+      const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
+      await soulbound.connect(addr2).createToken(eventId, '1234', 2, 2, addr1.address, signature);
+
+      await expect(soulbound.connect(addr2).claimToken(eventId, addr1.address, signature)).to.emit(soulbound, 'EventToken').withArgs(eventId, 1);
     });
   });
 
-  describe("Burning", function () {
+  describe("Crate", function () {
+
+    it("Should create a token with a limit", async function () {
+      const { soulbound, addr1, addr2 } = await loadFixture(deploySoulboundFixture);
+
+      let messageHash = ethers.utils.solidityKeccak256(
+        ["address"],
+        [addr1.address]
+      );
+
+      let messageHashBinary = ethers.utils.arrayify(messageHash);
+
+      let signature = await addr1.signMessage(messageHashBinary);
+
+      const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
+      await soulbound.connect(addr2).createToken(eventId, '1234', 2, 2, addr1.address, signature);
+
+      const token = await soulbound.createdTokens(eventId);
+      expect(token.uri).to.equal('1234');
+    });
+
+    it("Should create a token with both codes and addresses", async function () {
+      const { soulbound, addr1, addr2 } = await loadFixture(deploySoulboundFixture);
+
+      let messageHash = ethers.utils.solidityKeccak256(
+        ["address"],
+        [addr1.address]
+      );
+      let messageHashBinary = ethers.utils.arrayify(messageHash);
+      let signature = await addr1.signMessage(messageHashBinary);
+      const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
+
+
+      const code1 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234567'));
+      const code2 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('75674'));
+      await soulbound.connect(addr2).createTokenFromBoth(
+        eventId,
+        '1234',
+        [addr1.address, addr2.address],
+        [code1, code2],
+        2,
+        addr1.address,
+        signature);
+
+      expect(await soulbound.issuedCodeTokens(code1)).to.equal(eventId);
+      expect(await soulbound.issuedCodeTokens(code2)).to.equal(eventId);
+      expect(await soulbound.issuedTokens(eventId, addr1.address)).to.equal(true);
+      expect(await soulbound.issuedTokens(eventId, addr2.address)).to.equal(true);
+    });
+  });
+
+  xdescribe("Burning", function () {
     describe("IssuerOnly", function () {
       it("Should only burn if issuer requests it", async function () {
       });
