@@ -4,7 +4,6 @@
 
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -21,19 +20,32 @@ import "hardhat/console.sol";
 /**
  * @dev Soulbound (aka non-transferable) ERC721 token with storage based token URI management.
  */
-//  TODO(nocs): validate if we need ERC721URIStorage aka tokenURI as we are already storing it manually.
-contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
+contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     using ECDSA for bytes32;
 
     event EventToken(bytes32 eventId, uint256 tokenId);
+    event SoulBind(address owner, uint256 tokenId);
 
     struct Token {
         BurnAuth burnAuth;
+        bool boe;
         uint256 count;
         uint256 limit;
         address owner;
         bool restricted;
         string uri;
+    }
+
+    struct TokenCreationData {
+        bool boe;
+        BurnAuth _burnAuth;
+        bytes32 eventId;
+        address from;
+        uint256 limit;
+        bytes signature;
+        address[] toAddr;
+        bytes32[] toCode;
+        string _tokenURI;
     }
 
     using Counters for Counters.Counter;
@@ -50,6 +62,8 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
     mapping(bytes32 => mapping(address => bool)) public issuedTokens;
     // Event Id hash => Token
     mapping(bytes32 => Token) public createdTokens;
+    // Token Id => Bool - check before every transfer
+    mapping(uint256 => bool) public isBoe;
 
     constructor() ERC721("Soulbound", "Bound") {}
 
@@ -92,83 +106,76 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         _;
     }
 
-    // Non pre-issued tokens with limit
-    function createToken(
-        bytes32 eventId,
-        string calldata _tokenURI,
-        uint256 limit,
-        BurnAuth _burnAuth,
-        address from,
+    // Convert BoE token into SBT
+    function soulbind(
+        uint256 tokenId,
+        address owner,
         bytes memory signature
-    ) public eventExists(eventId) isValidSignature(signature, from) {
-        require(limit > 0, "Increase limit");
-        require(limit <= _limitMax, "Reduce limit");
+    ) public isValidSignature(signature, owner) {
+        require(owner == ownerOf(tokenId), "Only owner may bind");
+        isBoe[tokenId] = false;
 
-        _createToken(eventId, _tokenURI, _burnAuth, from);
-        createdTokens[eventId].limit = limit;
-        createdTokens[eventId].restricted = false;
+        emit SoulBind(owner, tokenId);
+    }
+
+    // Non pre-issued tokens with limit
+    function createToken(TokenCreationData calldata tcd)
+        public
+        eventExists(tcd.eventId)
+        isValidSignature(tcd.signature, tcd.from)
+    {
+        require(tcd.limit > 0, "Increase limit");
+        require(tcd.limit <= _limitMax, "Reduce limit");
+
+        _createToken(tcd);
+        createdTokens[tcd.eventId].limit = tcd.limit;
+        createdTokens[tcd.eventId].restricted = false;
     }
 
     // Pre-issued tokens from addresses
-    function createTokenFromAddresses(
-        bytes32 eventId,
-        string calldata _tokenURI,
-        address[] calldata to,
-        BurnAuth _burnAuth,
-        address from,
-        bytes memory signature
-    ) public eventExists(eventId) isValidSignature(signature, from) {
-        require(to.length > 0, "Requires receiver array");
+    function createTokenFromAddresses(TokenCreationData calldata tcd)
+        public
+        eventExists(tcd.eventId)
+        isValidSignature(tcd.signature, tcd.from)
+    {
+        require(tcd.toAddr.length > 0, "Requires receiver array");
 
-        _createToken(eventId, _tokenURI, _burnAuth, from);
-        createdTokens[eventId].restricted = true;
+        _createToken(tcd);
+        createdTokens[tcd.eventId].restricted = true;
 
-        _issueTokens(to, eventId);
+        _issueTokens(tcd.toAddr, tcd.eventId);
     }
 
     // Pre-issued tokens from codes
-    function createTokenFromCode(
-        bytes32 eventId,
-        string calldata _tokenURI,
-        bytes32[] calldata to,
-        BurnAuth _burnAuth,
-        address from,
-        bytes memory signature
-    ) public eventExists(eventId) isValidSignature(signature, from) {
-        require(to.length > 0, "Requires receiver array");
+    function createTokenFromCode(TokenCreationData calldata tcd)
+        public
+        eventExists(tcd.eventId)
+        isValidSignature(tcd.signature, tcd.from)
+    {
+        require(tcd.toCode.length > 0, "Requires receiver array");
 
-        _createToken(eventId, _tokenURI, _burnAuth, from);
-        createdTokens[eventId].restricted = true;
+        _createToken(tcd);
+        createdTokens[tcd.eventId].restricted = true;
 
-        _issueCodeTokens(to, eventId);
+        _issueCodeTokens(tcd.toCode, tcd.eventId);
     }
 
     // Pre-issued tokens from codes and addresses
-    function createTokenFromBoth(
-        bytes32 eventId,
-        string calldata _tokenURI,
-        address[] calldata toAddr,
-        bytes32[] calldata toCode,
-        BurnAuth _burnAuth,
-        address from,
-        bytes memory signature
-    ) public {
-        bytes32 msgHash = keccak256(abi.encodePacked(from));
-        bytes32 signedHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash)
-        );
-        require(signedHash.recover(signature) == from, "Invalid signature");
+    function createTokenFromBoth(TokenCreationData calldata tcd)
+        public
+        eventExists(tcd.eventId)
+        isValidSignature(tcd.signature, tcd.from)
+    {
         require(
-            toAddr.length > 0 && toCode.length > 0,
+            tcd.toAddr.length > 0 && tcd.toCode.length > 0,
             "Requires receiver array"
         );
 
-        // TODO(nocs): solidity really doesnt like me adding 'from' to that function below...
-        // _createToken(eventId, _tokenURI, _burnAuth);
-        createdTokens[eventId].restricted = true;
+        _createToken(tcd);
+        createdTokens[tcd.eventId].restricted = true;
 
-        _issueTokens(toAddr, eventId);
-        _issueCodeTokens(toCode, eventId);
+        _issueTokens(tcd.toAddr, tcd.eventId);
+        _issueCodeTokens(tcd.toCode, tcd.eventId);
     }
 
     // Mint tokens
@@ -189,6 +196,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         uint256 tokenId = _tokenIds.current();
         _mint(to, tokenId);
         _setTokenURI(tokenId, createdTokens[eventId].uri);
+        _setBoeState(eventId, tokenId);
 
         emit EventToken(eventId, tokenId);
 
@@ -211,6 +219,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         uint256 tokenId = _tokenIds.current();
         _mint(to, tokenId);
         _setTokenURI(tokenId, createdTokens[eventId].uri);
+        _setBoeState(eventId, tokenId);
 
         emit EventToken(eventId, tokenId);
 
@@ -238,6 +247,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         uint256 tokenId = _tokenIds.current();
         _mint(to, tokenId);
         _setTokenURI(tokenId, createdTokens[eventId].uri);
+        _setBoeState(eventId, tokenId);
 
         emit EventToken(eventId, tokenId);
 
@@ -262,15 +272,11 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         _burn(tokenId);
     }
 
-    function _createToken(
-        bytes32 eventId,
-        string calldata _tokenURI,
-        BurnAuth _burnAuth,
-        address from
-    ) private {
-        createdTokens[eventId].owner = from;
-        createdTokens[eventId].uri = _tokenURI;
-        createdTokens[eventId].burnAuth = _burnAuth;
+    function _createToken(TokenCreationData calldata tcd) private {
+        createdTokens[tcd.eventId].uri = tcd._tokenURI;
+        createdTokens[tcd.eventId].burnAuth = tcd._burnAuth;
+        createdTokens[tcd.eventId].owner = tcd.from;
+        createdTokens[tcd.eventId].boe = tcd.boe;
     }
 
     function _issueTokens(address[] calldata to, bytes32 eventId) private {
@@ -285,30 +291,49 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         }
     }
 
+    function _setBoeState(bytes32 eventId, uint256 tokenId) private {
+        isBoe[tokenId] = createdTokens[eventId].boe;
+    }
+
     // Soulbound functionality
     function transferFrom(
-        address, //from,
-        address, //to,
-        uint256 //tokenId
-    ) public pure override(ERC721, IERC721) {
-        revert("This token is soulbound and cannot be transfered");
+        address from, //from,
+        address to, //to,
+        uint256 tokenId //tokenId
+    ) public override(ERC721, IERC721) {
+        require(
+            isBoe[tokenId],
+            "This token is soulbound and cannot be transfered"
+        );
+
+        super.transferFrom(from, to, tokenId);
     }
 
     function safeTransferFrom(
-        address, //from,
-        address, //to,
-        uint256 //tokenId
-    ) public pure override(ERC721, IERC721) {
-        revert("This token is soulbound and cannot be transfered");
+        address from, //from,
+        address to, //to,
+        uint256 tokenId //tokenId
+    ) public override(ERC721, IERC721) {
+        require(
+            isBoe[tokenId],
+            "This token is soulbound and cannot be transfered"
+        );
+
+        super.safeTransferFrom(from, to, tokenId);
     }
 
     function safeTransferFrom(
-        address, //from,
-        address, //to,
-        uint256, //tokenId,
-        bytes memory //_data
-    ) public pure override(ERC721, IERC721) {
-        revert("This token is soulbound and cannot be transfered");
+        address from, //from,
+        address to, //to,
+        uint256 tokenId, //tokenId
+        bytes memory _data //_data
+    ) public override(ERC721, IERC721) {
+        require(
+            isBoe[tokenId],
+            "This token is soulbound and cannot be transfered"
+        );
+
+        super.safeTransferFrom(from, to, tokenId, _data);
     }
 
     // Required overrides from parent contracts
@@ -343,9 +368,5 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable, Ownable {
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
-    }
-
-    function safeMint(address to, uint256 tokenId) public onlyOwner {
-        _mint(to, tokenId);
     }
 }
