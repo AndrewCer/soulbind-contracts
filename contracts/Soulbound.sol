@@ -23,7 +23,7 @@ import "hardhat/console.sol";
 contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     using ECDSA for bytes32;
 
-    event EventToken(bytes32 eventId, uint256 tokenId);
+    event TokenClaim(bytes32 eventId, uint256 tokenId);
     event SoulBind(address owner, uint256 tokenId);
 
     struct Token {
@@ -198,7 +198,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
         _setTokenURI(tokenId, createdTokens[eventId].uri);
         _setBoeState(eventId, tokenId);
 
-        emit EventToken(eventId, tokenId);
+        emit TokenClaim(eventId, tokenId);
 
         return tokenId;
     }
@@ -221,7 +221,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
         _setTokenURI(tokenId, createdTokens[eventId].uri);
         _setBoeState(eventId, tokenId);
 
-        emit EventToken(eventId, tokenId);
+        emit TokenClaim(eventId, tokenId);
 
         return tokenId;
     }
@@ -249,7 +249,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
         _setTokenURI(tokenId, createdTokens[eventId].uri);
         _setBoeState(eventId, tokenId);
 
-        emit EventToken(eventId, tokenId);
+        emit TokenClaim(eventId, tokenId);
 
         return tokenId;
     }
