@@ -56,7 +56,6 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     // Issued tokens by code - hash associated to any form of identity off chain
     // hash of code => Event Id hash
     mapping(bytes32 => bytes32) public issuedCodeTokens;
-
     // Issued tokens by address
     // Event Id hash => address => Bool
     mapping(bytes32 => mapping(address => bool)) public issuedTokens;
@@ -65,14 +64,14 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     // Token Id => Bool - check before every transfer
     mapping(uint256 => bool) public isBoe;
 
-    constructor() ERC721("Soulbound", "Bound") {}
+    constructor() ERC721("Soulbind V0.5", "Bind") {}
 
     modifier eventExists(bytes32 eventId) {
         require(createdTokens[eventId].owner == address(0x0), "EventId taken");
         _;
     }
 
-    // Used while claiming. Allows a person to claim for themselves and not others
+    // Used for all of our gasless txn. Signed addr must match received addr
     modifier isValidSignature(bytes memory signature, address addr) {
         bytes32 msgHash = keccak256(abi.encodePacked(addr));
         bytes32 signedHash = keccak256(
@@ -83,20 +82,26 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
         _;
     }
 
-    modifier onlyBurnAuth(uint256 tokenId, bytes32 eventId) {
+    modifier onlyBurnAuth(
+        uint256 tokenId,
+        bytes32 eventId,
+        address sender
+    ) {
+        require(createdTokens[eventId].owner != address(0x0), "Invalid Id");
+
         if (createdTokens[eventId].burnAuth == BurnAuth.OwnerOnly) {
-            require(msg.sender == ownerOf(tokenId), "Only owner may burn");
+            require(sender == ownerOf(tokenId), "Only owner may burn");
         }
         if (createdTokens[eventId].burnAuth == BurnAuth.IssuerOnly) {
             require(
-                msg.sender == createdTokens[eventId].owner,
+                sender == createdTokens[eventId].owner,
                 "Only issuer may burn"
             );
         }
         if (createdTokens[eventId].burnAuth == BurnAuth.Both) {
             require(
-                msg.sender == createdTokens[eventId].owner ||
-                    msg.sender == ownerOf(tokenId),
+                sender == createdTokens[eventId].owner ||
+                    sender == ownerOf(tokenId),
                 "Only issuer or owner may burn"
             );
         }
@@ -265,9 +270,15 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
         createdTokens[eventId].limit = limit;
     }
 
-    function burnToken(uint256 tokenId, bytes32 eventId)
+    function burnToken(
+        uint256 tokenId,
+        bytes32 eventId,
+        address sender,
+        bytes memory signature
+    )
         public
-        onlyBurnAuth(tokenId, eventId)
+        onlyBurnAuth(tokenId, eventId, sender)
+        isValidSignature(signature, sender)
     {
         _burn(tokenId);
     }

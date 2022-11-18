@@ -75,7 +75,7 @@ describe("Soulbound", function () {
 
       await soulbound.connect(addr2).createToken(tokenCreationData);
 
-      await expect(soulbound.connect(addr2).claimToken(eventId, addr1.address, signature)).to.emit(soulbound, 'EventToken').withArgs(eventId, 1);
+      await expect(soulbound.connect(addr2).claimToken(eventId, addr1.address, signature)).to.emit(soulbound, 'TokenClaim').withArgs(eventId, 1);
     });
   });
 
@@ -363,7 +363,8 @@ describe("Soulbound", function () {
 
 
 
-  xdescribe("Burning", function () {
+  describe("Burning", function () {
+
     describe("IssuerOnly", function () {
       it("Should only burn if issuer requests it", async function () {
       });
@@ -375,7 +376,49 @@ describe("Soulbound", function () {
     });
     describe("Both", function () {
       it("Should burn for either owner or issuer", async function () {
+        const { soulbound, addr1, addr2, addr3 } = await loadFixture(deploySoulboundFixture);
 
+        let messageHash = ethers.utils.solidityKeccak256(
+          ["address"],
+          [addr1.address]
+        );
+
+        let messageHashBinary = ethers.utils.arrayify(messageHash);
+
+        let signature = await addr1.signMessage(messageHashBinary);
+
+        const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
+
+        const tokenCreationData = {
+          boe: true,
+          eventId,
+          _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
+          from: addr1.address,
+          limit: 2,
+          signature,
+          toAddr: [],
+          toCode: [],
+          _tokenURI: '12345',
+        }
+
+        tokenCreationData._burnAuth
+
+        // Create token
+        await soulbound.connect(addr2).createToken(tokenCreationData);
+        // Claim token
+        messageHash = ethers.utils.solidityKeccak256(
+          ["address"],
+          [addr3.address]
+        );
+        messageHashBinary = ethers.utils.arrayify(messageHash);
+        signature = await addr3.signMessage(messageHashBinary);
+        await soulbound.connect(addr2).claimToken(eventId, addr3.address, signature);
+
+        expect(await soulbound.ownerOf(1)).to.equal(addr3.address);
+
+        await soulbound.connect(addr2).burnToken(1, eventId, addr3.address, signature);
+
+        await expect(soulbound.ownerOf(1)).to.revertedWith('ERC721: invalid token ID');
       });
     });
     describe("Neither", function () {
