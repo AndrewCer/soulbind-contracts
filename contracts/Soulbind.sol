@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0
 
-// TODO: polygons implementation of SBTs https://polygonscan.com/address/0x42c091743f7b73b2f0043b1fb822b63aaa05041b#code
-
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
@@ -12,15 +10,10 @@ import "./Enums.sol";
 
 import "hardhat/console.sol";
 
-// Entities:
-// creator/issuer
-// url
-// claimer
-
 /**
  * @dev Soulbound (aka non-transferable) ERC721 token with storage based token URI management.
  */
-contract Soulbound is ERC721URIStorage, ERC721Enumerable {
+contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     using ECDSA for bytes32;
 
     event TokenClaim(bytes32 eventId, uint256 tokenId);
@@ -64,7 +57,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     // Token Id => Bool - check before every transfer
     mapping(uint256 => bool) public isBoe;
 
-    constructor() ERC721("Soulbind V0.5", "Bind") {}
+    constructor() ERC721("Soulbind V0.6", "Bind") {}
 
     modifier eventExists(bytes32 eventId) {
         require(createdTokens[eventId].owner == address(0x0), "EventId taken");
@@ -306,7 +299,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
         isBoe[tokenId] = createdTokens[eventId].boe;
     }
 
-    // Soulbound functionality
+    // Soulbind/BoE functionality
     function transferFrom(
         address from, //from,
         address to, //to,
@@ -314,7 +307,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
-            "This token is soulbound and cannot be transfered"
+            "This token is soulbind and cannot be transfered"
         );
 
         super.transferFrom(from, to, tokenId);
@@ -327,7 +320,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
-            "This token is soulbound and cannot be transfered"
+            "This token is soulbind and cannot be transfered"
         );
 
         super.safeTransferFrom(from, to, tokenId);
@@ -341,7 +334,7 @@ contract Soulbound is ERC721URIStorage, ERC721Enumerable {
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
-            "This token is soulbound and cannot be transfered"
+            "This token is soulbind and cannot be transfered"
         );
 
         super.safeTransferFrom(from, to, tokenId, _data);

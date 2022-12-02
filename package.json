@@ -1,11 +1,12 @@
 {
-  "name": "soulbound",
+  "name": "soulbind",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "compile": "npx hardhat compile",
-    "test": "npx hardhat test"
+    "test": "npx hardhat test",
+    "deploy:matictest": "npx hardhat run scripts/deploy.ts --network matic"
   },
   "author": "",
   "license": "ISC",
@@ -14,6 +15,7 @@
     "hardhat": "^2.12.0"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^4.7.3"
+    "@openzeppelin/contracts": "^4.7.3",
+    "dotenv": "^16.0.3"
   }
 }

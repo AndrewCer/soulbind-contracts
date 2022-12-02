@@ -10,45 +10,45 @@ enum BurnAuth {
   Neither
 }
 
-describe("Soulbound", function () {
+describe("Soulbind", function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
   // and reset Hardhat Network to that snapshot in every test.
-  async function deploySoulboundFixture() {
+  async function deploySoulbindFixture() {
     // Contracts are deployed using the first signer/account by default
     const [owner, addr1, addr2, addr3] = await ethers.getSigners();
 
     const burnAuth = BurnAuth.Both;
 
-    const Soulbound = await ethers.getContractFactory("Soulbound");
-    const soulbound = await Soulbound.deploy();
+    const Soulbind = await ethers.getContractFactory("Soulbind");
+    const soulbind = await Soulbind.deploy();
 
-    return { soulbound, burnAuth, owner, addr1, addr2, addr3 };
+    return { soulbind, burnAuth, owner, addr1, addr2, addr3 };
   }
 
   xdescribe("Deployment", function () {
     it("Should set the right burnAuth rule", async function () {
-      const { soulbound, burnAuth } = await loadFixture(deploySoulboundFixture);
+      const { soulbind, burnAuth } = await loadFixture(deploySoulbindFixture);
 
-      expect(await soulbound.burnAuth()).to.equal(burnAuth);
+      expect(await soulbind.burnAuth()).to.equal(burnAuth);
     });
 
     it("Should set the right owner", async function () {
-      const { soulbound, owner } = await loadFixture(deploySoulboundFixture);
+      const { soulbind, owner } = await loadFixture(deploySoulbindFixture);
 
-      expect(await soulbound.owner()).to.equal(owner.address);
+      expect(await soulbind.owner()).to.equal(owner.address);
     });
 
     it("Should fail if the burnAuth is not valid", async function () {
       const burnAuth = 4; // NOTE: 4 should be outside of the BurnAuth enum.
-      const Soulbound = await ethers.getContractFactory("Soulbound");
-      await expect(Soulbound.deploy(burnAuth)).to.be.reverted;
+      const Soulbind = await ethers.getContractFactory("Soulbind");
+      await expect(Soulbind.deploy(burnAuth)).to.be.reverted;
     });
   });
 
   describe("Claiming", function () {
     it("Should only allow the signer to claim a token", async function () {
-      const { soulbound, addr1, addr2 } = await loadFixture(deploySoulboundFixture);
+      const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
       let messageHash = ethers.utils.solidityKeccak256(
         ["address"],
@@ -73,9 +73,9 @@ describe("Soulbound", function () {
         _tokenURI: '12345',
       }
 
-      await soulbound.connect(addr2).createToken(tokenCreationData);
+      await soulbind.connect(addr2).createToken(tokenCreationData);
 
-      await expect(soulbound.connect(addr2).claimToken(eventId, addr1.address, signature)).to.emit(soulbound, 'TokenClaim').withArgs(eventId, 1);
+      await expect(soulbind.connect(addr2).claimToken(eventId, addr1.address, signature)).to.emit(soulbind, 'TokenClaim').withArgs(eventId, 1);
     });
   });
 
@@ -83,7 +83,7 @@ describe("Soulbound", function () {
 
     describe("createToken", function () {
       it("Should create a token with a limit", async function () {
-        const { soulbound, addr1, addr2 } = await loadFixture(deploySoulboundFixture);
+        const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
         let messageHash = ethers.utils.solidityKeccak256(
           ["address"],
@@ -108,16 +108,16 @@ describe("Soulbound", function () {
           _tokenURI: '12345',
         }
 
-        await soulbound.connect(addr2).createToken(tokenCreationData);
+        await soulbind.connect(addr2).createToken(tokenCreationData);
 
-        const token = await soulbound.createdTokens(eventId);
+        const token = await soulbind.createdTokens(eventId);
         expect(token.owner).to.equal(addr1.address);
       });
     });
 
     describe("createTokenFromAddresses", function () {
       it("Should create a token with pre issued addresses", async function () {
-        const { soulbound, addr1, addr2, addr3 } = await loadFixture(deploySoulboundFixture);
+        const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
         let messageHash = ethers.utils.solidityKeccak256(
           ["address"],
@@ -142,16 +142,16 @@ describe("Soulbound", function () {
           _tokenURI: '12345',
         }
 
-        await soulbound.connect(addr2).createTokenFromAddresses(tokenCreationData);
+        await soulbind.connect(addr2).createTokenFromAddresses(tokenCreationData);
 
-        const token = await soulbound.createdTokens(eventId);
+        const token = await soulbind.createdTokens(eventId);
         expect(token.owner).to.equal(addr1.address);
       });
     });
 
     describe("createTokenFromCode", function () {
       it("Should create a token with pre issued codes", async function () {
-        const { soulbound, addr1, addr2, addr3 } = await loadFixture(deploySoulboundFixture);
+        const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
         let messageHash = ethers.utils.solidityKeccak256(
           ["address"],
@@ -178,18 +178,18 @@ describe("Soulbound", function () {
           _tokenURI: '12345',
         }
 
-        await soulbound.connect(addr2).createTokenFromCode(tokenCreationData);
+        await soulbind.connect(addr2).createTokenFromCode(tokenCreationData);
 
-        const token = await soulbound.createdTokens(eventId);
+        const token = await soulbind.createdTokens(eventId);
         expect(token.owner).to.equal(addr1.address);
-        expect(await soulbound.issuedCodeTokens(code1)).to.equal(eventId);
-        expect(await soulbound.issuedCodeTokens(code2)).to.equal(eventId);
+        expect(await soulbind.issuedCodeTokens(code1)).to.equal(eventId);
+        expect(await soulbind.issuedCodeTokens(code2)).to.equal(eventId);
       });
     });
 
     describe("createTokenFromBoth", function () {
       it("Should create a token with both pre issued codes and addresses", async function () {
-        const { soulbound, addr1, addr2 } = await loadFixture(deploySoulboundFixture);
+        const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
         let messageHash = ethers.utils.solidityKeccak256(
           ["address"],
@@ -215,21 +215,21 @@ describe("Soulbound", function () {
           _tokenURI: '12345',
         }
 
-        await soulbound.connect(addr2).createTokenFromBoth(tokenCreationData);
+        await soulbind.connect(addr2).createTokenFromBoth(tokenCreationData);
 
-        const token = await soulbound.createdTokens(eventId);
+        const token = await soulbind.createdTokens(eventId);
         expect(token.owner).to.equal(addr1.address);
-        expect(await soulbound.issuedCodeTokens(code1)).to.equal(eventId);
-        expect(await soulbound.issuedCodeTokens(code2)).to.equal(eventId);
-        expect(await soulbound.issuedTokens(eventId, addr1.address)).to.equal(true);
-        expect(await soulbound.issuedTokens(eventId, addr2.address)).to.equal(true);
+        expect(await soulbind.issuedCodeTokens(code1)).to.equal(eventId);
+        expect(await soulbind.issuedCodeTokens(code2)).to.equal(eventId);
+        expect(await soulbind.issuedTokens(eventId, addr1.address)).to.equal(true);
+        expect(await soulbind.issuedTokens(eventId, addr2.address)).to.equal(true);
       });
     });
   });
 
   describe("BoE", function () {
     it("Allow users to create a BoE token", async function () {
-      const { soulbound, addr1, addr2 } = await loadFixture(deploySoulboundFixture);
+      const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
       let messageHash = ethers.utils.solidityKeccak256(
         ["address"],
@@ -254,13 +254,13 @@ describe("Soulbound", function () {
         _tokenURI: '12345',
       }
 
-      await soulbound.connect(addr2).createToken(tokenCreationData);
-      const token = await soulbound.createdTokens(eventId);
+      await soulbind.connect(addr2).createToken(tokenCreationData);
+      const token = await soulbind.createdTokens(eventId);
       expect(token.boe).to.equal(true);
     });
 
     it("Allow the owner of a BoE token to transfer it", async function () {
-      const { soulbound, addr1, addr2, addr3 } = await loadFixture(deploySoulboundFixture);
+      const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
       let messageHash = ethers.utils.solidityKeccak256(
         ["address"],
@@ -286,7 +286,7 @@ describe("Soulbound", function () {
       }
 
       // Create token
-      await soulbound.connect(addr2).createToken(tokenCreationData);
+      await soulbind.connect(addr2).createToken(tokenCreationData);
 
       // Claim token
       messageHash = ethers.utils.solidityKeccak256(
@@ -295,17 +295,17 @@ describe("Soulbound", function () {
       );
       messageHashBinary = ethers.utils.arrayify(messageHash);
       signature = await addr3.signMessage(messageHashBinary);
-      await soulbound.connect(addr2).claimToken(eventId, addr3.address, signature)
+      await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature)
       // Verify current owner
-      expect(await soulbound.ownerOf(1)).to.equal(addr3.address);
+      expect(await soulbind.ownerOf(1)).to.equal(addr3.address);
       // Connect to owners address and transfer token owenership
-      await soulbound.connect(addr3).transferFrom(addr3.address, addr2.address, 1);
+      await soulbind.connect(addr3).transferFrom(addr3.address, addr2.address, 1);
       // Verify new owner
-      expect(await soulbound.ownerOf(1)).to.equal(addr2.address);
+      expect(await soulbind.ownerOf(1)).to.equal(addr2.address);
     });
 
     it("Allow the owner of of BoE token to claim and bind it and not transfer it", async function () {
-      const { soulbound, addr1, addr2, addr3 } = await loadFixture(deploySoulboundFixture);
+      const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
       let messageHash = ethers.utils.solidityKeccak256(
         ["address"],
@@ -331,7 +331,7 @@ describe("Soulbound", function () {
       }
 
       // Create token
-      await soulbound.connect(addr2).createToken(tokenCreationData);
+      await soulbind.connect(addr2).createToken(tokenCreationData);
       // Claim token
       messageHash = ethers.utils.solidityKeccak256(
         ["address"],
@@ -339,13 +339,13 @@ describe("Soulbound", function () {
       );
       messageHashBinary = ethers.utils.arrayify(messageHash);
       signature = await addr3.signMessage(messageHashBinary);
-      await soulbound.connect(addr2).claimToken(eventId, addr3.address, signature);
+      await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature);
       // Verify current owner
-      expect(await soulbound.ownerOf(1)).to.equal(addr3.address);
+      expect(await soulbind.ownerOf(1)).to.equal(addr3.address);
       // Transfer token ownership
-      await soulbound.connect(addr3).transferFrom(addr3.address, addr2.address, 1);
+      await soulbind.connect(addr3).transferFrom(addr3.address, addr2.address, 1);
       // Verify new owner
-      expect(await soulbound.ownerOf(1)).to.equal(addr2.address);
+      expect(await soulbind.ownerOf(1)).to.equal(addr2.address);
       // New owner soulbinds token
       messageHash = ethers.utils.solidityKeccak256(
         ["address"],
@@ -353,11 +353,11 @@ describe("Soulbound", function () {
       );
       messageHashBinary = ethers.utils.arrayify(messageHash);
       signature = await addr2.signMessage(messageHashBinary);
-      await soulbound.soulbind(1, addr2.address, signature);
+      await soulbind.soulbind(1, addr2.address, signature);
       // Verify that token is bound
-      expect(await soulbound.isBoe(1)).to.equal(false);
+      expect(await soulbind.isBoe(1)).to.equal(false);
       // Verify they may not transfer token
-      await expect(soulbound.connect(addr2).transferFrom(addr2.address, addr1.address, 1)).to.revertedWith('This token is soulbound and cannot be transfered');
+      await expect(soulbind.connect(addr2).transferFrom(addr2.address, addr1.address, 1)).to.revertedWith('This token is soulbind and cannot be transfered');
     });
   })
 
@@ -376,7 +376,7 @@ describe("Soulbound", function () {
     });
     describe("Both", function () {
       it("Should burn for either owner or issuer", async function () {
-        const { soulbound, addr1, addr2, addr3 } = await loadFixture(deploySoulboundFixture);
+        const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
         let messageHash = ethers.utils.solidityKeccak256(
           ["address"],
@@ -404,7 +404,7 @@ describe("Soulbound", function () {
         tokenCreationData._burnAuth
 
         // Create token
-        await soulbound.connect(addr2).createToken(tokenCreationData);
+        await soulbind.connect(addr2).createToken(tokenCreationData);
         // Claim token
         messageHash = ethers.utils.solidityKeccak256(
           ["address"],
@@ -412,13 +412,13 @@ describe("Soulbound", function () {
         );
         messageHashBinary = ethers.utils.arrayify(messageHash);
         signature = await addr3.signMessage(messageHashBinary);
-        await soulbound.connect(addr2).claimToken(eventId, addr3.address, signature);
+        await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature);
 
-        expect(await soulbound.ownerOf(1)).to.equal(addr3.address);
+        expect(await soulbind.ownerOf(1)).to.equal(addr3.address);
 
-        await soulbound.connect(addr2).burnToken(1, eventId, addr3.address, signature);
+        await soulbind.connect(addr2).burnToken(1, eventId, addr3.address, signature);
 
-        await expect(soulbound.ownerOf(1)).to.revertedWith('ERC721: invalid token ID');
+        await expect(soulbind.ownerOf(1)).to.revertedWith('ERC721: invalid token ID');
       });
     });
     describe("Neither", function () {

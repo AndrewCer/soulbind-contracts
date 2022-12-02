@@ -1,3 +1,6 @@
-# Soulbound Project
+# Soulbind Protocol
 
-Soulbound project contract repo.
+Soulbind protocol contract repo.
+
+## Note
+Docs coming soon!

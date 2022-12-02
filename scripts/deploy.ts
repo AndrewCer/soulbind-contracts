@@ -7,16 +7,18 @@ enum BurnAuth {
   Neither,
 }
 
-async function main(burnAuth: BurnAuth) {
-  const Soulbound = await ethers.getContractFactory("Soulbound");
-  const soulbound = await Soulbound.deploy(burnAuth);
+async function main() {
+  const Soulbind = await ethers.getContractFactory("Soulbind");
+  const soulbind = await Soulbind.deploy();
 
-  await soulbound.deployed();
+  console.log('deploying...');
 
-  console.log(`Soulbound with burnAuth ${burnAuth} deployed to ${soulbound.address}`);
+  await soulbind.deployed();
+
+  console.log(`Soulbind deployed to ${soulbind.address}`);
 }
 
-main(BurnAuth.Both).catch((error) => {
+main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
