@@ -1,12 +1,5 @@
 import { ethers } from "hardhat";
 
-enum BurnAuth {
-  IssuerOnly,
-  OwnerOnly,
-  Both,
-  Neither,
-}
-
 async function main() {
   const Soulbind = await ethers.getContractFactory("Soulbind");
   const soulbind = await Soulbind.deploy();
