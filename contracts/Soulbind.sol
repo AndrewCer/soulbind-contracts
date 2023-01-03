@@ -26,6 +26,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         uint256 limit;
         address owner;
         bool restricted;
+        bool updatable;
         string uri;
     }
 
@@ -35,9 +36,11 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         bytes32 eventId;
         address from;
         uint256 limit;
+        bytes32 msgHash;
         bytes signature;
         address[] toAddr;
         bytes32[] toCode;
+        bool updatable;
         string _tokenURI;
     }
 
@@ -57,7 +60,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     // Token Id => Bool - check before every transfer
     mapping(uint256 => bool) public isBoe;
 
-    constructor() ERC721("Soulbind V0.6", "Bind") {}
+    constructor() ERC721("Soulbind V0.7", "Bind") {}
 
     modifier eventExists(bytes32 eventId) {
         require(createdTokens[eventId].owner == address(0x0), "EventId taken");
@@ -65,13 +68,12 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     }
 
     // Used for all of our gasless txn. Signed addr must match received addr
-    modifier isValidSignature(bytes memory signature, address addr) {
-        bytes32 msgHash = keccak256(abi.encodePacked(addr));
-        bytes32 signedHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", msgHash)
-        );
-
-        require(signedHash.recover(signature) == addr, "Invalid signature");
+    modifier isValidSignature(
+        bytes memory signature,
+        address addr,
+        bytes32 msgHash
+    ) {
+        require(msgHash.recover(signature) == addr, "Invalid signature");
         _;
     }
 
@@ -108,19 +110,34 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     function soulbind(
         uint256 tokenId,
         address owner,
-        bytes memory signature
-    ) public isValidSignature(signature, owner) {
+        bytes memory signature,
+        bytes32 msgHash
+    ) public isValidSignature(signature, owner, msgHash) {
         require(owner == ownerOf(tokenId), "Only owner may bind");
         isBoe[tokenId] = false;
 
         emit SoulBind(owner, tokenId);
     }
 
+    function burnToken(
+        uint256 tokenId,
+        bytes32 eventId,
+        address sender,
+        bytes memory signature,
+        bytes32 msgHash
+    )
+        public
+        onlyBurnAuth(tokenId, eventId, sender)
+        isValidSignature(signature, sender, msgHash)
+    {
+        _burn(tokenId);
+    }
+
     // Non pre-issued tokens with limit
     function createToken(TokenCreationData calldata tcd)
         public
         eventExists(tcd.eventId)
-        isValidSignature(tcd.signature, tcd.from)
+        isValidSignature(tcd.signature, tcd.from, tcd.msgHash)
     {
         require(tcd.limit > 0, "Increase limit");
         require(tcd.limit <= _limitMax, "Reduce limit");
@@ -134,7 +151,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     function createTokenFromAddresses(TokenCreationData calldata tcd)
         public
         eventExists(tcd.eventId)
-        isValidSignature(tcd.signature, tcd.from)
+        isValidSignature(tcd.signature, tcd.from, tcd.msgHash)
     {
         require(tcd.toAddr.length > 0, "Requires receiver array");
 
@@ -148,7 +165,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     function createTokenFromCode(TokenCreationData calldata tcd)
         public
         eventExists(tcd.eventId)
-        isValidSignature(tcd.signature, tcd.from)
+        isValidSignature(tcd.signature, tcd.from, tcd.msgHash)
     {
         require(tcd.toCode.length > 0, "Requires receiver array");
 
@@ -162,7 +179,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     function createTokenFromBoth(TokenCreationData calldata tcd)
         public
         eventExists(tcd.eventId)
-        isValidSignature(tcd.signature, tcd.from)
+        isValidSignature(tcd.signature, tcd.from, tcd.msgHash)
     {
         require(
             tcd.toAddr.length > 0 && tcd.toCode.length > 0,
@@ -180,8 +197,9 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     function claimToken(
         bytes32 eventId,
         address to,
-        bytes memory signature
-    ) public isValidSignature(signature, to) returns (uint256) {
+        bytes memory signature,
+        bytes32 msgHash
+    ) public isValidSignature(signature, to, msgHash) returns (uint256) {
         require(createdTokens[eventId].restricted == false, "Restricted token");
         require(
             createdTokens[eventId].limit > createdTokens[eventId].count,
@@ -205,8 +223,9 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     function claimIssuedToken(
         bytes32 eventId,
         address to,
-        bytes memory signature
-    ) public isValidSignature(signature, to) returns (uint256) {
+        bytes memory signature,
+        bytes32 msgHash
+    ) public isValidSignature(signature, to, msgHash) returns (uint256) {
         require(createdTokens[eventId].restricted, "Not a restricted token");
         require(issuedTokens[eventId][to], "Token must be issued to you");
 
@@ -229,8 +248,9 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         bytes32 eventId,
         bytes32 code,
         address to,
-        bytes memory signature
-    ) public isValidSignature(signature, to) returns (uint256) {
+        bytes memory signature,
+        bytes32 msgHash
+    ) public isValidSignature(signature, to, msgHash) returns (uint256) {
         require(createdTokens[eventId].restricted, "Not a restricted token");
         require(
             issuedCodeTokens[code] == eventId,
@@ -263,17 +283,20 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         createdTokens[eventId].limit = limit;
     }
 
-    function burnToken(
+    // Update an individual tokens metadata
+    function updateTokenURI(
         uint256 tokenId,
         bytes32 eventId,
-        address sender,
-        bytes memory signature
-    )
-        public
-        onlyBurnAuth(tokenId, eventId, sender)
-        isValidSignature(signature, sender)
-    {
-        _burn(tokenId);
+        string memory _tokenURI,
+        address from,
+        bytes memory signature,
+        bytes32 msgHash
+    ) public isValidSignature(signature, from, msgHash) {
+        require(createdTokens[eventId].owner == from, "Not owner");
+        require(createdTokens[eventId].updatable, "Not updatable");
+        require(_exists(tokenId), "Invalid token");
+
+        _setTokenURI(tokenId, _tokenURI);
     }
 
     function _createToken(TokenCreationData calldata tcd) private {
@@ -281,6 +304,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         createdTokens[tcd.eventId].burnAuth = tcd._burnAuth;
         createdTokens[tcd.eventId].owner = tcd.from;
         createdTokens[tcd.eventId].boe = tcd.boe;
+        createdTokens[tcd.eventId].updatable = tcd.updatable;
     }
 
     function _issueTokens(address[] calldata to, bytes32 eventId) private {
@@ -299,11 +323,13 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         isBoe[tokenId] = createdTokens[eventId].boe;
     }
 
+    // Overrides
+
     // Soulbind/BoE functionality
     function transferFrom(
-        address from, //from,
-        address to, //to,
-        uint256 tokenId //tokenId
+        address from,
+        address to,
+        uint256 tokenId
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
@@ -314,9 +340,9 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     }
 
     function safeTransferFrom(
-        address from, //from,
-        address to, //to,
-        uint256 tokenId //tokenId
+        address from,
+        address to,
+        uint256 tokenId
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
@@ -327,10 +353,10 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     }
 
     function safeTransferFrom(
-        address from, //from,
-        address to, //to,
-        uint256 tokenId, //tokenId
-        bytes memory _data //_data
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory _data
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],

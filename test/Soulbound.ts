@@ -1,5 +1,5 @@
-import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
+import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { randomBytes } from 'crypto';
 import { expect } from "chai";
 import { ethers } from "hardhat";
 
@@ -26,38 +26,16 @@ describe("Soulbind", function () {
     return { soulbind, burnAuth, owner, addr1, addr2, addr3 };
   }
 
-  xdescribe("Deployment", function () {
-    it("Should set the right burnAuth rule", async function () {
-      const { soulbind, burnAuth } = await loadFixture(deploySoulbindFixture);
-
-      expect(await soulbind.burnAuth()).to.equal(burnAuth);
-    });
-
-    it("Should set the right owner", async function () {
-      const { soulbind, owner } = await loadFixture(deploySoulbindFixture);
-
-      expect(await soulbind.owner()).to.equal(owner.address);
-    });
-
-    it("Should fail if the burnAuth is not valid", async function () {
-      const burnAuth = 4; // NOTE: 4 should be outside of the BurnAuth enum.
-      const Soulbind = await ethers.getContractFactory("Soulbind");
-      await expect(Soulbind.deploy(burnAuth)).to.be.reverted;
-    });
-  });
-
   describe("Claiming", function () {
     it("Should only allow the signer to claim a token", async function () {
       const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
-      let messageHash = ethers.utils.solidityKeccak256(
-        ["address"],
-        [addr1.address]
-      );
+      const randomValues = randomBytes(32).toString("base64");
+      const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      const msgHash = ethers.utils.hashMessage(message);
 
-      let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-      let signature = await addr1.signMessage(messageHashBinary);
+      let signature = await addr1.signMessage(message);
 
       const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
@@ -67,15 +45,17 @@ describe("Soulbind", function () {
         _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
         from: addr1.address,
         limit: 2,
+        msgHash,
         signature,
         toAddr: [],
         toCode: [],
+        updatable: false,
         _tokenURI: '12345',
       }
 
       await soulbind.connect(addr2).createToken(tokenCreationData);
 
-      await expect(soulbind.connect(addr2).claimToken(eventId, addr1.address, signature)).to.emit(soulbind, 'TokenClaim').withArgs(eventId, 1);
+      await expect(soulbind.connect(addr2).claimToken(eventId, addr1.address, signature, msgHash)).to.emit(soulbind, 'TokenClaim').withArgs(eventId, 1);
     });
   });
 
@@ -85,14 +65,12 @@ describe("Soulbind", function () {
       it("Should create a token with a limit", async function () {
         const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
-        let messageHash = ethers.utils.solidityKeccak256(
-          ["address"],
-          [addr1.address]
-        );
+        const randomValues = randomBytes(32).toString("base64");
+        const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+        const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+        const msgHash = ethers.utils.hashMessage(message);
 
-        let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-        let signature = await addr1.signMessage(messageHashBinary);
+        let signature = await addr1.signMessage(message);
 
         const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
@@ -102,9 +80,11 @@ describe("Soulbind", function () {
           _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
           from: addr1.address,
           limit: 2,
+          msgHash,
           signature,
           toAddr: [],
           toCode: [],
+          updatable: false,
           _tokenURI: '12345',
         }
 
@@ -119,14 +99,12 @@ describe("Soulbind", function () {
       it("Should create a token with pre issued addresses", async function () {
         const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
-        let messageHash = ethers.utils.solidityKeccak256(
-          ["address"],
-          [addr1.address]
-        );
+        const randomValues = randomBytes(32).toString("base64");
+        const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+        const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+        const msgHash = ethers.utils.hashMessage(message);
 
-        let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-        let signature = await addr1.signMessage(messageHashBinary);
+        let signature = await addr1.signMessage(message);
 
         const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
@@ -136,9 +114,11 @@ describe("Soulbind", function () {
           _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
           from: addr1.address,
           limit: 2,
+          msgHash,
           signature,
           toAddr: [addr2.address, addr3.address],
           toCode: [],
+          updatable: false,
           _tokenURI: '12345',
         }
 
@@ -153,14 +133,12 @@ describe("Soulbind", function () {
       it("Should create a token with pre issued codes", async function () {
         const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
-        let messageHash = ethers.utils.solidityKeccak256(
-          ["address"],
-          [addr1.address]
-        );
+        const randomValues = randomBytes(32).toString("base64");
+        const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+        const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+        const msgHash = ethers.utils.hashMessage(message);
 
-        let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-        let signature = await addr1.signMessage(messageHashBinary);
+        let signature = await addr1.signMessage(message);
 
         const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
         const code1 = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234567'));
@@ -172,9 +150,11 @@ describe("Soulbind", function () {
           _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
           from: addr1.address,
           limit: 2,
+          msgHash,
           signature,
           toAddr: [],
           toCode: [code1, code2],
+          updatable: false,
           _tokenURI: '12345',
         }
 
@@ -191,12 +171,12 @@ describe("Soulbind", function () {
       it("Should create a token with both pre issued codes and addresses", async function () {
         const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
-        let messageHash = ethers.utils.solidityKeccak256(
-          ["address"],
-          [addr1.address]
-        );
-        let messageHashBinary = ethers.utils.arrayify(messageHash);
-        let signature = await addr1.signMessage(messageHashBinary);
+        const randomValues = randomBytes(32).toString("base64");
+        const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+        const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+        const msgHash = ethers.utils.hashMessage(message);
+
+        let signature = await addr1.signMessage(message);
         const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
 
@@ -209,9 +189,11 @@ describe("Soulbind", function () {
           _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
           from: addr1.address,
           limit: 2,
+          msgHash,
           signature,
           toAddr: [addr1.address, addr2.address],
           toCode: [code1, code2],
+          updatable: false,
           _tokenURI: '12345',
         }
 
@@ -227,18 +209,16 @@ describe("Soulbind", function () {
     });
   });
 
-  describe("BoE", function () {
-    it("Allow users to create a BoE token", async function () {
+  describe("Update", function () {
+    it("should allow a single tokens to be updated", async function () {
       const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
 
-      let messageHash = ethers.utils.solidityKeccak256(
-        ["address"],
-        [addr1.address]
-      );
+      const randomValues = randomBytes(32).toString("base64");
+      const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      const msgHash = ethers.utils.hashMessage(message);
 
-      let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-      let signature = await addr1.signMessage(messageHashBinary);
+      let signature = await addr1.signMessage(message);
 
       const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
@@ -248,9 +228,124 @@ describe("Soulbind", function () {
         _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
         from: addr1.address,
         limit: 2,
+        msgHash,
         signature,
         toAddr: [],
         toCode: [],
+        updatable: true,
+        _tokenURI: '12345',
+      }
+
+      await soulbind.connect(addr2).createToken(tokenCreationData);
+      await soulbind.connect(addr2).claimToken(eventId, addr1.address, signature, msgHash);
+
+      const newTokenURI = '54321';
+
+      await soulbind.connect(addr2).updateTokenURI(1, eventId, newTokenURI, addr1.address, signature, msgHash);
+
+      const createdToken = await soulbind.createdTokens(eventId);
+      const tokenURI = await soulbind.tokenURI(1);
+
+      expect(tokenURI).to.equal(newTokenURI);
+    });
+
+    it("should not update the root token event", async function () {
+      const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
+
+      const randomValues = randomBytes(32).toString("base64");
+      const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      const msgHash = ethers.utils.hashMessage(message);
+
+      let signature = await addr1.signMessage(message);
+
+      const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
+
+      const tokenCreationData = {
+        boe: true,
+        eventId,
+        _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
+        from: addr1.address,
+        limit: 2,
+        msgHash,
+        signature,
+        toAddr: [],
+        toCode: [],
+        updatable: true,
+        _tokenURI: '12345',
+      }
+
+      await soulbind.connect(addr2).createToken(tokenCreationData);
+      await soulbind.connect(addr2).claimToken(eventId, addr1.address, signature, msgHash);
+
+      const newTokenURI = '54321';
+
+      await soulbind.connect(addr2).updateTokenURI(1, eventId, newTokenURI, addr1.address, signature, msgHash);
+
+      const createdToken = await soulbind.createdTokens(eventId);
+
+      expect(createdToken.uri).to.equal('12345');
+    });
+
+    it("should not allow an update of an non updatable token", async function () {
+      const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
+
+      const randomValues = randomBytes(32).toString("base64");
+      const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      const msgHash = ethers.utils.hashMessage(message);
+
+      let signature = await addr1.signMessage(message);
+
+      const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
+
+      const tokenCreationData = {
+        boe: true,
+        eventId,
+        _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
+        from: addr1.address,
+        limit: 2,
+        msgHash,
+        signature,
+        toAddr: [],
+        toCode: [],
+        updatable: false,
+        _tokenURI: '12345',
+      }
+
+      await soulbind.connect(addr2).createToken(tokenCreationData);
+      await soulbind.connect(addr2).claimToken(eventId, addr1.address, signature, msgHash);
+
+      const newTokenURI = '54321';
+
+      await expect(soulbind.connect(addr2).updateTokenURI(1, eventId, newTokenURI, addr1.address, signature, msgHash)).to.revertedWith('Not updatable');
+    });
+  });
+
+  describe("BoE", function () {
+    it("Allow users to create a BoE token", async function () {
+      const { soulbind, addr1, addr2 } = await loadFixture(deploySoulbindFixture);
+
+      const randomValues = randomBytes(32).toString("base64");
+      const rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      const message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      const msgHash = ethers.utils.hashMessage(message);
+
+      let signature = await addr1.signMessage(message);
+
+      const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
+
+      const tokenCreationData = {
+        boe: true,
+        eventId,
+        _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
+        from: addr1.address,
+        limit: 2,
+        msgHash,
+        signature,
+        toAddr: [],
+        toCode: [],
+        updatable: false,
         _tokenURI: '12345',
       }
 
@@ -262,14 +357,12 @@ describe("Soulbind", function () {
     it("Allow the owner of a BoE token to transfer it", async function () {
       const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
-      let messageHash = ethers.utils.solidityKeccak256(
-        ["address"],
-        [addr1.address]
-      );
+      let randomValues = randomBytes(32).toString("base64");
+      let rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      let message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      let msgHash = ethers.utils.hashMessage(message);
 
-      let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-      let signature = await addr1.signMessage(messageHashBinary);
+      let signature = await addr1.signMessage(message);
 
       const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
@@ -279,9 +372,11 @@ describe("Soulbind", function () {
         _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
         from: addr1.address,
         limit: 2,
+        msgHash,
         signature,
         toAddr: [],
         toCode: [],
+        updatable: false,
         _tokenURI: '12345',
       }
 
@@ -289,13 +384,13 @@ describe("Soulbind", function () {
       await soulbind.connect(addr2).createToken(tokenCreationData);
 
       // Claim token
-      messageHash = ethers.utils.solidityKeccak256(
-        ["address"],
-        [addr3.address]
-      );
-      messageHashBinary = ethers.utils.arrayify(messageHash);
-      signature = await addr3.signMessage(messageHashBinary);
-      await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature)
+      randomValues = randomBytes(32).toString("base64");
+      rawMessage = `Signing confirms that you own this address:\n${addr3.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      msgHash = ethers.utils.hashMessage(message);
+
+      signature = await addr3.signMessage(message);
+      await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature, msgHash);
       // Verify current owner
       expect(await soulbind.ownerOf(1)).to.equal(addr3.address);
       // Connect to owners address and transfer token owenership
@@ -307,14 +402,12 @@ describe("Soulbind", function () {
     it("Allow the owner of of BoE token to claim and bind it and not transfer it", async function () {
       const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
-      let messageHash = ethers.utils.solidityKeccak256(
-        ["address"],
-        [addr1.address]
-      );
+      let randomValues = randomBytes(32).toString("base64");
+      let rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      let message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      let msgHash = ethers.utils.hashMessage(message);
 
-      let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-      let signature = await addr1.signMessage(messageHashBinary);
+      let signature = await addr1.signMessage(message);
 
       const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
@@ -325,21 +418,23 @@ describe("Soulbind", function () {
         from: addr1.address,
         limit: 2,
         signature,
+        msgHash,
         toAddr: [],
         toCode: [],
+        updatable: false,
         _tokenURI: '12345',
       }
 
       // Create token
       await soulbind.connect(addr2).createToken(tokenCreationData);
       // Claim token
-      messageHash = ethers.utils.solidityKeccak256(
-        ["address"],
-        [addr3.address]
-      );
-      messageHashBinary = ethers.utils.arrayify(messageHash);
-      signature = await addr3.signMessage(messageHashBinary);
-      await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature);
+      randomValues = randomBytes(32).toString("base64");
+      rawMessage = `Signing confirms that you own this address:\n${addr3.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      msgHash = ethers.utils.hashMessage(message);
+
+      signature = await addr3.signMessage(message);
+      await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature, msgHash);
       // Verify current owner
       expect(await soulbind.ownerOf(1)).to.equal(addr3.address);
       // Transfer token ownership
@@ -347,13 +442,13 @@ describe("Soulbind", function () {
       // Verify new owner
       expect(await soulbind.ownerOf(1)).to.equal(addr2.address);
       // New owner soulbinds token
-      messageHash = ethers.utils.solidityKeccak256(
-        ["address"],
-        [addr2.address]
-      );
-      messageHashBinary = ethers.utils.arrayify(messageHash);
-      signature = await addr2.signMessage(messageHashBinary);
-      await soulbind.soulbind(1, addr2.address, signature);
+      randomValues = randomBytes(32).toString("base64");
+      rawMessage = `Signing confirms that you own this address:\n${addr3.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+      message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+      msgHash = ethers.utils.hashMessage(message);
+
+      signature = await addr2.signMessage(message);
+      await soulbind.soulbind(1, addr2.address, signature, msgHash);
       // Verify that token is bound
       expect(await soulbind.isBoe(1)).to.equal(false);
       // Verify they may not transfer token
@@ -378,14 +473,12 @@ describe("Soulbind", function () {
       it("Should burn for either owner or issuer", async function () {
         const { soulbind, addr1, addr2, addr3 } = await loadFixture(deploySoulbindFixture);
 
-        let messageHash = ethers.utils.solidityKeccak256(
-          ["address"],
-          [addr1.address]
-        );
+        let randomValues = randomBytes(32).toString("base64");
+        let rawMessage = `Signing confirms that you own this address:\n${addr1.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+        let message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+        let msgHash = ethers.utils.hashMessage(message);
 
-        let messageHashBinary = ethers.utils.arrayify(messageHash);
-
-        let signature = await addr1.signMessage(messageHashBinary);
+        let signature = await addr1.signMessage(message);
 
         const eventId = ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1234'));
 
@@ -396,8 +489,10 @@ describe("Soulbind", function () {
           from: addr1.address,
           limit: 2,
           signature,
+          msgHash,
           toAddr: [],
           toCode: [],
+          updatable: false,
           _tokenURI: '12345',
         }
 
@@ -406,17 +501,17 @@ describe("Soulbind", function () {
         // Create token
         await soulbind.connect(addr2).createToken(tokenCreationData);
         // Claim token
-        messageHash = ethers.utils.solidityKeccak256(
-          ["address"],
-          [addr3.address]
-        );
-        messageHashBinary = ethers.utils.arrayify(messageHash);
-        signature = await addr3.signMessage(messageHashBinary);
-        await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature);
+        randomValues = randomBytes(32).toString("base64");
+        rawMessage = `Signing confirms that you own this address:\n${addr3.address}\n~~Security~~\nTimestamp: ${Date.now()}\nNonce: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(randomValues))}`;
+        message = `${rawMessage}\nHash: ${ethers.utils.keccak256(ethers.utils.toUtf8Bytes(rawMessage))}`;
+        msgHash = ethers.utils.hashMessage(message);
+
+        signature = await addr3.signMessage(message);
+        await soulbind.connect(addr2).claimToken(eventId, addr3.address, signature, msgHash);
 
         expect(await soulbind.ownerOf(1)).to.equal(addr3.address);
 
-        await soulbind.connect(addr2).burnToken(1, eventId, addr3.address, signature);
+        await soulbind.connect(addr2).burnToken(1, eventId, addr3.address, signature, msgHash);
 
         await expect(soulbind.ownerOf(1)).to.revertedWith('ERC721: invalid token ID');
       });
