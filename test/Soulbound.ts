@@ -528,7 +528,7 @@ describe("Soulbind", function () {
       // Verify that token is bound
       expect(await soulbind.isBoe(1)).to.equal(false);
       // Verify they may not transfer token
-      await expect(soulbind.connect(addr2).transferFrom(addr2.address, addr1.address, 1)).to.revertedWith('This token is soulbind and cannot be transfered');
+      await expect(soulbind.connect(addr2).transferFrom(addr2.address, addr1.address, 1)).to.revertedWith('This token is soulbound and cannot be transfered');
     });
   })
 
