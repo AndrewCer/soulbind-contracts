@@ -46,7 +46,6 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     }
 
     using Counters for Counters.Counter;
-    Counters.Counter private _eventIds;
     Counters.Counter private _tokenIds;
     uint256 private _limitMax = 500000;
 
