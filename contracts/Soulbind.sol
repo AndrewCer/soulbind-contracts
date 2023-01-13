@@ -335,7 +335,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
-            "This token is soulbind and cannot be transfered"
+            "This token is soulbound and cannot be transfered"
         );
 
         super.transferFrom(from, to, tokenId);
@@ -348,7 +348,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
-            "This token is soulbind and cannot be transfered"
+            "This token is soulbound and cannot be transfered"
         );
 
         super.safeTransferFrom(from, to, tokenId);
@@ -362,7 +362,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     ) public override(ERC721, IERC721) {
         require(
             isBoe[tokenId],
-            "This token is soulbind and cannot be transfered"
+            "This token is soulbound and cannot be transfered"
         );
 
         super.safeTransferFrom(from, to, tokenId, _data);
