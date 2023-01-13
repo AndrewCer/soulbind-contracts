@@ -16,8 +16,9 @@ import "hardhat/console.sol";
 contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     using ECDSA for bytes32;
 
+    event TokenBind(address owner, uint256 tokenId);
     event TokenClaim(bytes32 eventId, uint256 tokenId);
-    event SoulBind(address owner, uint256 tokenId);
+    event TokenCreate(address owner, bytes32 eventId);
 
     struct Token {
         BurnAuth burnAuth;
@@ -47,7 +48,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     using Counters for Counters.Counter;
     Counters.Counter private _eventIds;
     Counters.Counter private _tokenIds;
-    uint256 private _limitMax = 10000;
+    uint256 private _limitMax = 500000;
 
     // Issued tokens by code - hash associated to any form of identity off chain
     // hash of code => Event Id hash
@@ -60,7 +61,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     // Token Id => Bool - check before every transfer
     mapping(uint256 => bool) public isBoe;
 
-    constructor() ERC721("Soulbind V0.7", "Bind") {}
+    constructor() ERC721("Soulbind V0.8", "Soulbind") {}
 
     modifier eventExists(bytes32 eventId) {
         require(createdTokens[eventId].owner == address(0x0), "EventId taken");
@@ -116,7 +117,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         require(owner == ownerOf(tokenId), "Only owner may bind");
         isBoe[tokenId] = false;
 
-        emit SoulBind(owner, tokenId);
+        emit TokenBind(owner, tokenId);
     }
 
     function burnToken(
@@ -133,7 +134,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         _burn(tokenId);
     }
 
-    // Non pre-issued tokens with limit
+    // Non restricted token with limit
     function createToken(TokenCreationData calldata tcd)
         public
         eventExists(tcd.eventId)
@@ -147,50 +148,26 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         createdTokens[tcd.eventId].restricted = false;
     }
 
-    // Pre-issued tokens from addresses
-    function createTokenFromAddresses(TokenCreationData calldata tcd)
-        public
-        eventExists(tcd.eventId)
-        isValidSignature(tcd.signature, tcd.from, tcd.msgHash)
-    {
-        require(tcd.toAddr.length > 0, "Requires receiver array");
-
-        _createToken(tcd);
-        createdTokens[tcd.eventId].restricted = true;
-
-        _issueTokens(tcd.toAddr, tcd.eventId);
-    }
-
-    // Pre-issued tokens from codes
-    function createTokenFromCode(TokenCreationData calldata tcd)
-        public
-        eventExists(tcd.eventId)
-        isValidSignature(tcd.signature, tcd.from, tcd.msgHash)
-    {
-        require(tcd.toCode.length > 0, "Requires receiver array");
-
-        _createToken(tcd);
-        createdTokens[tcd.eventId].restricted = true;
-
-        _issueCodeTokens(tcd.toCode, tcd.eventId);
-    }
-
-    // Pre-issued tokens from codes and addresses
-    function createTokenFromBoth(TokenCreationData calldata tcd)
+    // Create restricted token
+    function createRestrictedToken(TokenCreationData calldata tcd)
         public
         eventExists(tcd.eventId)
         isValidSignature(tcd.signature, tcd.from, tcd.msgHash)
     {
         require(
-            tcd.toAddr.length > 0 && tcd.toCode.length > 0,
+            tcd.toAddr.length > 0 || tcd.toCode.length > 0,
             "Requires receiver array"
         );
 
         _createToken(tcd);
         createdTokens[tcd.eventId].restricted = true;
 
-        _issueTokens(tcd.toAddr, tcd.eventId);
-        _issueCodeTokens(tcd.toCode, tcd.eventId);
+        if (tcd.toAddr.length > 0) {
+            _issueTokens(tcd.toAddr, tcd.eventId);
+        }
+        if (tcd.toCode.length > 0) {
+            _issueCodeTokens(tcd.toCode, tcd.eventId);
+        }
     }
 
     // Mint tokens
@@ -272,11 +249,35 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         return tokenId;
     }
 
-    function incraseLimit(bytes32 eventId, uint256 limit) public {
-        require(
-            createdTokens[eventId].owner == msg.sender,
-            "Must be event owner"
-        );
+    // Update issued addresses/codes for restricted tokens
+    function addIssuedTo(
+        bytes32 eventId,
+        address[] calldata toAddr,
+        bytes32[] calldata toCode,
+        address from,
+        bytes memory signature,
+        bytes32 msgHash
+    ) public isValidSignature(signature, from, msgHash) {
+        require(createdTokens[eventId].restricted, "Must be restricted token");
+        require(createdTokens[eventId].owner == from, "Must be event owner");
+        if (toAddr.length > 0) {
+            _issueTokens(toAddr, eventId);
+        }
+        if (toCode.length > 0) {
+            _issueCodeTokens(toCode, eventId);
+        }
+    }
+
+    // Update token limit for non restricted tokens
+    function incraseLimit(
+        bytes32 eventId,
+        uint256 limit,
+        address from,
+        bytes memory signature,
+        bytes32 msgHash
+    ) public isValidSignature(signature, from, msgHash) {
+        require(!createdTokens[eventId].restricted, "Must not be restricted token");
+        require(createdTokens[eventId].owner == from, "Must be event owner");
         require(createdTokens[eventId].limit < limit, "Increase limit");
         require(limit <= _limitMax, "Reduce limit");
 
@@ -305,6 +306,8 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
         createdTokens[tcd.eventId].owner = tcd.from;
         createdTokens[tcd.eventId].boe = tcd.boe;
         createdTokens[tcd.eventId].updatable = tcd.updatable;
+
+        emit TokenCreate(tcd.from, tcd.eventId);
     }
 
     function _issueTokens(address[] calldata to, bytes32 eventId) private {
