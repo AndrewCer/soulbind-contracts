@@ -6,7 +6,10 @@
   "scripts": {
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
-    "deploy:matictest": "npx hardhat run scripts/deploy.ts --network matic"
+    "deploy:polygonmumbai": "npx hardhat run scripts/deploy.ts --network polygon_mumbai",
+    "deploy:polygonmainnet": "npx hardhat run scripts/deploy.ts --network polygon_main_net",
+    "verify:polygonmumbai": "npx hardhat verify $npm_config_contract --network polygon_mumbai",
+    "verify:polygonmainnet": "npx hardhat verify $npm_config_contract --network polygon_main_net"
   },
   "author": "",
   "license": "ISC",
@@ -15,6 +18,7 @@
     "hardhat": "^2.12.0"
   },
   "dependencies": {
+    "@nomiclabs/hardhat-etherscan": "^3.1.5",
     "@openzeppelin/contracts": "^4.7.3",
     "dotenv": "^16.0.3"
   }
