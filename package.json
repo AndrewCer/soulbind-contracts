@@ -1,11 +1,12 @@
 {
   "name": "soulbind",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
+    "util:genadd": "npx hardhat run scripts/address-generator.ts",
     "deploy:polygonmumbai": "npx hardhat run scripts/deploy.ts --network polygon_mumbai",
     "deploy:polygonmainnet": "npx hardhat run scripts/deploy.ts --network polygon_main_net",
     "verify:polygonmumbai": "npx hardhat verify $npm_config_contract --network polygon_mumbai",
