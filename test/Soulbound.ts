@@ -244,7 +244,7 @@ describe("Soulbind", function () {
           eventId,
           _burnAuth: ethers.BigNumber.from(BurnAuth.OwnerOnly),
           from: addr1.address,
-          limit: 2,
+          limit: 3,
           msgHash,
           signature,
           toAddr: [],
@@ -272,7 +272,7 @@ describe("Soulbind", function () {
           eventId,
           _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
           from: addr1.address,
-          limit: 2,
+          limit: 3,
           msgHash,
           signature,
           toAddr: [],
@@ -532,7 +532,34 @@ describe("Soulbind", function () {
     });
 
     describe("incraseLimit", function () {
+      it("should increase a non restricted tokens limit", async function () {
+        const { soulbind, addr1, addr2, addr3, eventId, msgHash, signature } = await loadFixture(deploySoulbindFixture);
 
+
+        const tokenCreationData = {
+          boe: true,
+          eventId,
+          _burnAuth: ethers.BigNumber.from(BurnAuth.Both),
+          from: addr1.address,
+          limit: 2,
+          msgHash,
+          signature,
+          toAddr: [],
+          toCode: [],
+          updatable: false,
+          _tokenURI: '12345',
+        }
+
+        await soulbind.connect(addr2).createToken(tokenCreationData);
+
+        const token = await soulbind.createdTokens(eventId);
+        expect(token.limit).to.equal(2);
+
+        await soulbind.connect(addr2).incraseLimit(eventId, 10);
+
+        const tokenAfterUpdate = await soulbind.createdTokens(eventId);
+        expect(tokenAfterUpdate.limit).to.equal(10);
+      });
     });
   });
 

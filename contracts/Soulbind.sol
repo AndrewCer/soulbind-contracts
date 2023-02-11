@@ -60,7 +60,7 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
     // Token Id => Bool - check before every transfer
     mapping(uint256 => bool) public isBoe;
 
-    constructor() ERC721("Soulbind V0.9", "Soulbind") {}
+    constructor() ERC721("Soulbind V0.10", "Soulbind") {}
 
     modifier eventExists(bytes32 eventId) {
         require(createdTokens[eventId].owner == address(0x0), "EventId taken");
@@ -260,6 +260,10 @@ contract Soulbind is ERC721URIStorage, ERC721Enumerable {
                 createdTokens[eventId].burnAuth == BurnAuth.Both,
             "Drops require receiver burnable tokens"
         );
+
+        if (!createdTokens[eventId].restricted) {
+            require(createdTokens[eventId].count + to.length <= createdTokens[eventId].limit, "Limit reached");
+        }
 
         for (uint256 i = 0; i < to.length; i++) {
             createdTokens[eventId].count += 1;
