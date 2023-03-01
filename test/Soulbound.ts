@@ -293,8 +293,8 @@ describe("Soulbind", function () {
       });
     });
 
-    describe("owner non-burnable token", function () {
-      it("should prevent BurnAuth.IssuerOnly tokens from being minted", async function () {
+    describe("non-restricted token", function () {
+      it("should prevent drops past token limit", async function () {
         const { soulbind, addr1, addr2, addr3, eventId, msgHash, signature } = await loadFixture(deploySoulbindFixture);
 
         let tokenCreationData = {
@@ -315,31 +315,7 @@ describe("Soulbind", function () {
         await soulbind.connect(addr2).createToken(tokenCreationData);
 
         // addr1 = owner
-        await expect(soulbind.connect(addr1).drop(eventId, [addr1.address, addr2.address, addr3.address])).to.revertedWith('Drops require receiver burnable tokens');
-      });
-
-      it("should prevent BurnAuth.Neither tokens from being minted", async function () {
-        const { soulbind, addr1, addr2, addr3, eventId, msgHash, signature } = await loadFixture(deploySoulbindFixture);
-
-        let tokenCreationData = {
-          boe: true,
-          eventId,
-          _burnAuth: ethers.BigNumber.from(BurnAuth.Neither),
-          from: addr1.address,
-          limit: 2,
-          msgHash,
-          signature,
-          toAddr: [],
-          toCode: [],
-          updatable: false,
-          _tokenURI: '12345',
-        }
-
-        // addr2 = relayer
-        await soulbind.connect(addr2).createToken(tokenCreationData);
-
-        // addr1 = owner
-        await expect(soulbind.connect(addr1).drop(eventId, [addr1.address, addr2.address, addr3.address])).to.revertedWith('Drops require receiver burnable tokens');
+        await expect(soulbind.connect(addr1).drop(eventId, [addr1.address, addr2.address, addr3.address])).to.revertedWith('Limit reached');
       });
     });
 
